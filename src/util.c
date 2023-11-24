@@ -107,7 +107,7 @@ int count_tokens(const char *str, char tok, int sz){
 	return no;
 }
 
-void print(int verbose, int newline, char *fn, int lineno, const char *fmt, ...) {
+FORMAT_PRINTF(5, 6) void print(int verbose, int newline, const char *fn, int lineno, const char *fmt, ...) {
 #if 0
 #ifndef DEBUG
 	if (verbose > G_VERBOSE)
@@ -157,34 +157,34 @@ void getch(void) {
 	tcsetattr(STDIN_FILENO, TCSANOW, &oldattr);
 }
 
-void hexdump(void *pAddressIn, long lSize) {
+void hexdump(const void *pAddressIn, long lSize) {
 	char szBuf[100];
 	long lIndent = 1;
 	long lOutLen, lIndex, lIndex2, lOutLen2;
 	long lRelPos;
 	struct {
-		char *pData;
+		const char *pData;
 		unsigned long lSize;
 	} buf;
-	unsigned char *pTmp, ucTmp;
-	unsigned char *pAddress = (unsigned char *)pAddressIn;
+	unsigned char ucTmp;
+	const unsigned char *pTmp, *pAddress = (const unsigned char *) pAddressIn;
 
-	buf.pData = (char *)pAddress;
+	buf.pData = (const char *) pAddress;
 	buf.lSize = lSize;
 
 	while (buf.lSize > 0) {
-		pTmp = (unsigned char *)buf.pData;
-		lOutLen = (int)buf.lSize;
+		pTmp = (unsigned char *) buf.pData;
+		lOutLen = (int) buf.lSize;
 		if (lOutLen > 16)
 			lOutLen = 16;
 
 		// create a 64-character formatted output line:
-		sprintf(szBuf, " >                                                      %08zX", pTmp - pAddress);
+		sprintf(szBuf, " >                                                      %08tX", pTmp - pAddress);
 		lOutLen2 = lOutLen;
 
 		for (lIndex = 1 + lIndent, lIndex2 = 53 - 15 + lIndent, lRelPos = 0; lOutLen2; lOutLen2--, lIndex += 2, lIndex2++) {
 			ucTmp = *pTmp++;
-			sprintf(szBuf + lIndex, "%02X ", (unsigned short)ucTmp);
+			sprintf(szBuf + lIndex, "%02hX ", (unsigned short) ucTmp);
 			if (!isprint(ucTmp))
 				ucTmp = '.';	// nonprintable char
 			szBuf[lIndex2] = ucTmp;
@@ -217,7 +217,7 @@ void rmrf(const char *path) {
 		nftw(path, unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
 }
 
-int err_ret(const char *format, ...) {
+FORMAT_PRINTF(1, 2) int err_ret(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 	vprintf(format, args);
@@ -384,15 +384,15 @@ int isSTRfile(const char *filename) {
 	return result;
 }
 
-int isdatetime(char *datetime) {
+bool is_datetime(const char *datetime) {
 	struct tm time_val;
 
 	// datetime format is YYYYMMDD
-	if (strptime(datetime, "%Y%m%d", &time_val) != 0
-		&& ((time_val.tm_year+1900) > 2005)) {
-		return 1;
+	if ((strptime(datetime, "%Y%m%d", &time_val) != NULL)
+		&& ((time_val.tm_year + 1900) > 2005)) {
+		return true;
 	} else {
-		return 0;
+		return false;
 	}
 }
 
@@ -458,13 +458,13 @@ int isPartPakfile(const char *filename) {
 	size_t size = sizeof(struct p2_partmap_info);
 	fread(&partinfo, 1, size, file);
 
-	char *cmagic;
+	char *cmagic = NULL;
 	asprintf(&cmagic, "%x", partinfo.magic);
 
-	int r = isdatetime((char *)cmagic);
+	bool valid = is_datetime((const char *) cmagic);
 	free(cmagic);
 
-	if (r) {
+	if (valid) {
 		printf("Found valid partpak magic 0x%x in %s\n", partinfo.magic, filename);
 	} else {
 		return 0;
@@ -496,23 +496,33 @@ int is_kernel(const char *image_file) {
 
 void extract_kernel(const char *image_file, const char *destination_file) {
 	FILE *file = fopen(image_file, "rb");
-	if (file == NULL)
+	if (file == NULL) {
 		err_exit("Can't open file %s", image_file);
+	}
 
-	fseek(file, 0, SEEK_END);
-	int fileLength = ftell(file);
+	if (fseek(file, 0, SEEK_END) != 0) {
+		err_exit("fseek on %s failed: %s", image_file, strerror(errno));
+	}
+
+	long fileLength = ftell(file);
 	rewind(file);
+
 	unsigned char *buffer = malloc(fileLength);
-	int read = fread(buffer, 1, fileLength, file);
+	size_t read = fread(buffer, 1, fileLength, file);
 	if (read != fileLength) {
-		err_exit("Error reading file. read %d bytes from %d.\n", read, fileLength);
+		err_exit("Error reading file. read %zu bytes from %ld.\n", read, fileLength);
 		free(buffer);
 	}
 	fclose(file);
 
 	FILE *out = fopen(destination_file, "wb");
-	int header_size = sizeof(struct image_header);
+	if (out == NULL) {
+		err_exit("Can't open file %s", destination_file);
+	}
+
+	const size_t header_size = sizeof(struct image_header);
 	fwrite(buffer + header_size, 1, read - header_size, out);
+
 	free(buffer);
 	fclose(out);
 }
@@ -520,7 +530,7 @@ void extract_kernel(const char *image_file, const char *destination_file) {
 /**
  * asprintf that allows reuse of strp in variadic arguments (frees strp and replaces it with newly allocated string)
  */
-int asprintf_inplace(char **strp, const char *fmt, ...) {
+FORMAT_PRINTF(2, 3) int asprintf_inplace(char **strp, const char *fmt, ...) {
     va_list args;
     int result;
     char *new_strp = NULL;
