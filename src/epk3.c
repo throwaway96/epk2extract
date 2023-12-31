@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <inttypes.h>
+#include <limits.h>
+#include <assert.h>
 
 #include "main.h"
 #include "config.h"
@@ -60,8 +62,8 @@ MFILE *isFileEPK3(const char *epk_file) {
 		return NULL;
 
 	checkOk:
-		printf("[EPK3] Platform Version: %.*s\n", sizeof(head->platformVersion), head->platformVersion);
-		printf("[EPK3] SDK Version: %.*s\n", sizeof(head->sdkVersion), head->sdkVersion);
+		printf("[EPK3] Platform Version: %.*s\n", int_sizeof(head->platformVersion), head->platformVersion);
+		printf("[EPK3] SDK Version: %.*s\n", int_sizeof(head->sdkVersion), head->sdkVersion);
 		return file;
 }
 
@@ -175,11 +177,11 @@ void extractEPK3(MFILE *epk, FILE_TYPE_T epkType, config_opts_t *config_opts){
 
 	if(epkType == EPK_V3_NEW){
 		printf("EncryptType: %.*s\n",
-			sizeof(epkHeader->new.encryptType),
+			int_sizeof(epkHeader->new.encryptType),
 			epkHeader->new.encryptType
 		);
 		printf("UpdateType:  %.*s\n",
-			sizeof(epkHeader->new.updateType),
+			int_sizeof(epkHeader->new.updateType),
 			epkHeader->new.updateType
 		);
 		printf("unknown: %02hhx %02hhx %02hhx\n", epkHeader->new.gap[0], epkHeader->new.gap[1], epkHeader->new.gap[2]);
