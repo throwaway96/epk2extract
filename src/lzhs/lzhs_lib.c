@@ -40,7 +40,7 @@ bool is_lzhs_mem(MFILE *file, off_t offset){
 }
 
 MFILE *is_lzhs(const char *filename) {
-	MFILE *file = mopen(filename, O_RDONLY);
+	MFILE *file = mopen_shared(filename);
 	if (file == NULL) {
 		err_exit("Can't open file %s\n", filename);
 	}

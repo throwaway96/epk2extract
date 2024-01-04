@@ -85,7 +85,7 @@ void split_mtk_tz(MFILE *tz, const char *destdir) {
 }
 
 MFILE *is_mtk_boot(const char *filename) {
-	MFILE *file = mopen(filename, O_RDONLY);
+	MFILE *file = mopen_shared(filename);
 	uint8_t *data = mdata(file, uint8_t);
 	if (file == NULL) {
 		err_exit("Can't open file %s\n", filename);
@@ -115,7 +115,7 @@ int is_elf_mem(Elf32_Ehdr * header) {
 }
 
 MFILE *is_elf(const char *filename) {
-	MFILE *file = mopen(filename, O_RDONLY);
+	MFILE *file = mopen_shared(filename);
 	if (file == NULL) {
 		err_exit("Can't open file %s\n", filename);
 	}

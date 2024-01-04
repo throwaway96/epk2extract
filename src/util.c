@@ -246,7 +246,7 @@ void createFolder(const char *directory) {
 }
 
 MFILE *is_lz4(const char *lz4file) {
-	MFILE *file = mopen(lz4file, O_RDONLY);
+	MFILE *file = mopen_shared(lz4file);
 	if (!file){
 		err_exit("Can't open file %s\n\n", lz4file);
 	}
@@ -298,7 +298,7 @@ bool is_nfsb_mem(MFILE *file, off_t offset){
 }
 
 MFILE *is_nfsb(const char *filename) {
-	MFILE *file = mopen(filename, O_RDONLY);
+	MFILE *file = mopen_shared(filename);
 	if (!file){
 		err_exit("Can't open file %s\n\n", filename);
 	}
@@ -315,7 +315,7 @@ MFILE *is_nfsb(const char *filename) {
 void unnfsb(const char *filename, const char *extractedFile) {
 	const int headerSize = 0x1000;
 
-	MFILE *in = mopen(filename, O_RDONLY);
+	MFILE *in = mopen_shared(filename);
 	if(in == NULL){
 		err_exit("Cannot open file '%s' for reading\n", filename);
 	}
@@ -340,7 +340,7 @@ void unnfsb(const char *filename, const char *extractedFile) {
 }
 
 MFILE *is_gzip(const char *filename) {
-	MFILE *file = mopen(filename, O_RDONLY);
+	MFILE *file = mopen_shared(filename);
 	if (file == NULL) {
 		err_exit("Can't open file %s\n", filename);
 		return NULL;

@@ -9,7 +9,7 @@
 #include "util.h"
 
 MFILE *is_rtk_bspfw(const char *filename){
-	MFILE *mf = mopen(filename, O_RDONLY);
+	MFILE *mf = mopen_shared(filename);
 	if(mf == NULL){
 		err_exit("Can't open file %s\n", filename);
 	}

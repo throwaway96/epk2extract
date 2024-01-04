@@ -15,7 +15,7 @@
 #define PHILIPS_DEBUG
 
 MFILE *is_philips_fusion1(const char *filename){
-		MFILE *mf = mopen(filename, O_RDONLY);
+		MFILE *mf = mopen_shared(filename);
 		if(!mf){
 			err_exit("mfopen failed for %s\n", filename);
 		}

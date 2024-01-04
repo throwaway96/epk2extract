@@ -410,7 +410,7 @@ void processTsPacket(uint8_t *packet, struct tables *PIDs, FILE *outFile){
 }
 
 void convertSTR2TS_internal(char *inFilename, char *outFilename, struct tsfile_options *opts) {
-	MFILE *inFile = mopen(inFilename, O_RDONLY);
+	MFILE *inFile = mopen_shared(inFilename);
 	if (inFile == NULL) {
 		printf("Can't open file %s\n", inFilename);
 		return;

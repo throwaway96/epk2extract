@@ -37,7 +37,7 @@ bool compare_epk2_header(const uint8_t *header, size_t headerSize){
 
 MFILE *isFileEPK2(const char *epk_file) {
 	setKeyFile_LG();
-	MFILE *file = mopen(epk_file, O_RDONLY);
+	MFILE *file = mopen_shared(epk_file);
 	if (!file) {
 		err_exit("Can't open file %s\n\n", epk_file);
 	}

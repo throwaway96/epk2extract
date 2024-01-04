@@ -95,7 +95,7 @@ bool is_known_partition(struct mtkpkg *pak){
 MFILE *is_mtk_pkg(const char *pkgfile){
 	setKeyFile_MTK();
 
-	MFILE *mf = mopen(pkgfile, O_RDONLY);
+	MFILE *mf = mopen_shared(pkgfile);
 	if(!mf){
 		err_exit("Cannot open file %s\n", pkgfile);
 	}
@@ -159,7 +159,7 @@ MFILE *is_mtk_pkg(const char *pkgfile){
 #define SIZEOF_FIRM_HEADERS 0x90
 
 MFILE *is_firm_image(const char *pkg){
-	MFILE *mf = mopen(pkg, O_RDONLY);
+	MFILE *mf = mopen_shared(pkg);
 	if(!mf){
 		err_exit("Cannot open file %s\n", pkg);
 	}
@@ -181,7 +181,7 @@ int extract_firm_image(MFILE *mf){
 }
 
 MFILE *is_lzhs_fs(const char *pkg){
-	MFILE *mf = mopen(pkg, O_RDONLY);
+	MFILE *mf = mopen_shared(pkg);
 	if(!mf){
 		err_exit("Cannot open file %s\n", pkg);
 	}
@@ -332,7 +332,7 @@ void extract_lzhs_fs(MFILE *mf, const char *dest_file, config_opts_t *config_opt
 		char *outSeg;
 		asprintf(&outSeg, "%s/%s.%u", tmpdir, base, i);
 
-		MFILE *seg = mopen(outSeg, O_RDONLY);
+		MFILE *seg = mopen_shared(outSeg);
 		if(seg) {
 			fwrite(mdata(seg, void), msize(seg), 1, out_file);
 			mclose(seg);
@@ -394,8 +394,7 @@ static off_t get_mtkpkg_offset(){
 }
 
 void extract_mtk_pkg(const char *pkgFile, config_opts_t *config_opts){
-	MFILE *mf = mopen_private(pkgFile, O_RDONLY);
-	mprotect(mf->pMem, msize(mf), PROT_READ | PROT_WRITE);
+	MFILE *mf = mopen_private(pkgFile);
 
 	off_t offset = get_mtkpkg_offset();
 	uint8_t *data = mdata(mf, uint8_t) + offset;

@@ -88,23 +88,24 @@ inline void *mfile_map_private(MFILE *file, size_t mapSize){
 /*
  * Opens and maps a file with open
  */
-MFILE *_mopen(const char *path, int oflags, int mapFlags){
+MFILE *_mopen_rdonly(const char *path, bool shared) {
 	MFILE *file = mfile_new();
-	file->fd = open(path, oflags, PERMS_DEFAULT);
+	file->fd = open(path, O_RDONLY);
 	if(file->fd < 0){
 		goto e0_ret;
 	}
 
 	if(_mfile_update_info(file, path) < 0)
 		goto e1_ret;
+	
+	file->prot = PROT_READ;
 
-	if((oflags & O_ACCMODE) == O_RDONLY) {
-		file->prot = PROT_READ;
-	} else if((oflags & O_ACCMODE) == O_WRONLY) {
-		file->prot = PROT_WRITE;
-	} else if((oflags & O_ACCMODE) == O_RDWR) {
-		file->prot = PROT_READ | PROT_WRITE;
+	if (!shared) {
+		/* writable private mapping */
+		file->prot |= PROT_WRITE;
 	}
+
+	const int mapFlags = shared ? MAP_SHARED : MAP_PRIVATE;
 
 	size_t fileSz = msize(file);
 	if(fileSz > 0){
@@ -123,12 +124,14 @@ MFILE *_mopen(const char *path, int oflags, int mapFlags){
 		return NULL;
 }
 
-inline MFILE *mopen(const char *path, int oflags){
-	return _mopen(path, oflags, MAP_SHARED);
+/* Creates a shared mapping */
+inline MFILE *mopen_shared(const char *path) {
+	return _mopen_rdonly(path, true);
 }
 
-inline MFILE *mopen_private(const char *path, int oflags){
-	return _mopen(path, oflags, MAP_PRIVATE);
+/* Creates a private mapping */
+inline MFILE *mopen_private(const char *path) {
+	return _mopen_rdonly(path, false);
 }
 
 int mgetc(MFILE *stream){
@@ -197,10 +200,10 @@ MFILE *_mfopen(const char *path, const char *mode, int mapFlags){
 	if(_mfile_update_info(file, path) < 0)
 		goto e1_ret;
 
-	if(strstr(mode, "r") != NULL || strstr(mode, "+") != NULL){
+	if ((strchr(mode, 'r') != NULL) || (strchr(mode, '+') != NULL)) {
 		file->prot |= PROT_READ;
 	}
-	if(strstr(mode, "w") != NULL){
+	if (strchr(mode, 'w') != NULL) {
 		file->prot |= PROT_WRITE;
 	}
 

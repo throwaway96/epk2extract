@@ -151,7 +151,7 @@ int main(int argc, char *argv[]){
 		goto exit_e0;
 	}
 
-	MFILE *mf = mopen(argv[1], O_RDONLY);
+	MFILE *mf = mopen_shared(argv[1]);
 	if(!mf){
 		fprintf(stderr, "mopen failed!\n");
 		return -1;

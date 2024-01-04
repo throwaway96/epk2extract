@@ -440,7 +440,7 @@ void do_list(int inode, std::string root = "") {
 
 				std::string new_name = pathname + suffix;
 
-				MFILE *f_src = mopen(cpath, O_RDONLY);
+				MFILE *f_src = mopen_shared(cpath);
 				MFILE *f_dst = mfopen(new_name.c_str(), "w+");
 				if(!f_src || !f_dst){
 					fprintf(stderr, "failed to copy '%s' to '%s'\n", cpath, new_name.c_str());
@@ -625,7 +625,7 @@ extern "C" int jffs2extract(char *infile, char *outdir, struct jffs2_main_args a
 	verbose = args.verbose;
 	keep_unlinked = args.keep_unlinked;
 
-	MFILE *mf = mopen(infile, O_RDONLY);
+	MFILE *mf = mopen_shared(infile);
 	if (!mf) {
 		fprintf(stderr, "Failed to open '%s'\n", infile);
 		return 1;

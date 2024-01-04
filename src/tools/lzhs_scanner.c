@@ -18,7 +18,7 @@ void scan_lzhs(const char *filename, int extract) {
 	struct lzhs_header *header = NULL;
 	char *outname, *outdecode;
 
-	MFILE *file = mopen(filename, O_RDONLY);
+	MFILE *file = mopen_shared(filename);
 	if (file == NULL) {
 		printf("Can't open file %s\n", filename);
 		exit(1);

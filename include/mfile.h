@@ -11,6 +11,7 @@ extern "C" {
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -66,8 +67,8 @@ MFILE *mfile_new(void);
 void *mfile_map(MFILE *file, size_t size);
 void *mfile_map_private(MFILE *file, size_t size);
 
-MFILE *mopen(const char *path, int oflags);
-MFILE *mopen_private(const char *path, int oflags);
+MFILE *mopen_shared(const char *path);
+MFILE *mopen_private(const char *path);
 
 MFILE *mfopen(const char *path, const char *mode);
 MFILE *mfopen_private(const char *path, const char *mode);
