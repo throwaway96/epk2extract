@@ -7,6 +7,8 @@
 #include <crc.h>
 #include <dirent.h>
 #include <ctype.h>
+#include <limits.h>
+#include <assert.h>
 
 #include "config.h"
 #include "common.h"
@@ -48,12 +50,12 @@ MFILE *isFileEPK2(const char *epk_file) {
 		goto checkFail;
 	}
 
+	bool has_versions = false;
 	// check if the epk magic is present (decrypted)
 	if(compare_epk2_header((uint8_t *)&(epk2->epkHeader), sizeof(EPK_V2_HEADER_T))){
 		goto checkOk;
 	}
 
-	bool has_versions = false;
 	if(isEpkVersionString(epk2->platformVersion) && isEpkVersionString(epk2->sdkVersion)){
 		has_versions = true;
 		goto checkOk;
@@ -65,8 +67,8 @@ MFILE *isFileEPK2(const char *epk_file) {
 
 	checkOk:
 		if(has_versions){
-			printf("[EPK2] Platform Version: %.*s\n", sizeof(epk2->platformVersion), epk2->platformVersion);
-			printf("[EPK2] SDK Version: %.*s\n", sizeof(epk2->sdkVersion), epk2->sdkVersion);
+			printf("[EPK2] Platform Version: %.*s\n", int_sizeof(epk2->platformVersion), epk2->platformVersion);
+			printf("[EPK2] SDK Version: %.*s\n", int_sizeof(epk2->sdkVersion), epk2->sdkVersion);
 		}
 		return file;
 
@@ -91,7 +93,7 @@ void extractEPK2(MFILE *epk, config_opts_t *config_opts) {
 		 * the biggest header as base (64 partitions)
 		 */
 		printf("\nVerifying digital signature of EPK2 firmware header...\n");
-		result = wrap_verifyimage(
+		wrap_verifyimage(
 			// Signature to check against
 			epk2->signature,
 			// Header to verify
@@ -157,13 +159,12 @@ void extractEPK2(MFILE *epk, config_opts_t *config_opts) {
 		pakLoc = (uintptr_t)(epkHeader) + pakLocs[curPak].imageOffset + (sizeof(signature_t) * signatureCount);
 		pak = (struct pak2_structure *)pakLoc;
 
-		unsigned int curSeg, segCount;
 		char *filename;
 		char *pakPartitionShortName;
 		MFILE *outFile;
 
 		/* Process every segment in a loop. We don't know the segment count yet */
-		for (curSeg=0; ;){
+		for (; ;){
 			++signatureCount;
 
 			size_t signed_size = pakLocs[curPak].imageSize;
@@ -219,8 +220,8 @@ void extractEPK2(MFILE *epk, config_opts_t *config_opts) {
 				return;
 			}
 
-			curSeg = pak->pakHeader.segmentIndex;
-			segCount = pak->pakHeader.segmentCount;
+			unsigned int curSeg = pak->pakHeader.segmentIndex;
+			unsigned int segCount = pak->pakHeader.segmentCount;
 			if(curSeg == 0){ //first pak, print segment count and open output file
 				printf("\nPAK '%.4s' contains %d segment(s):\n", pak->pakHeader.imageType, pak->pakHeader.segmentCount);
 				pakPartitionShortName = pak->pakHeader.imageType;
@@ -256,9 +257,9 @@ void extractEPK2(MFILE *epk, config_opts_t *config_opts) {
 				(pak->pakHeader.swVersion >> 16) & 0xff,
 				(pak->pakHeader.swVersion >> 8 ) & 0xff,
 				(pak->pakHeader.swVersion      ) & 0xff);
-			printf(" platform='%s', offset='0x%x', size='%u bytes', ",
+			printf(" platform='%s', offset='0x%jx', size='%zu bytes', ",
 				pak->pakHeader.modelName,
-				moff(epk, pak),
+				(intmax_t) moff(epk, pak),
 				pakContentSize);
 
 			switch ((BUILD_TYPE_T) pak->pakHeader.devMode) {
