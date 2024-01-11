@@ -83,7 +83,7 @@ static EVP_PKEY *SWU_CryptoInit_PEM(const char *configuration_dir, const char *p
 /*
  * Verifies the signature of the given data against the loaded public key
  */
-static int API_SWU_VerifyImage(const void *signature, const void *data, size_t imageSize, SIG_TYPE_T sigType) {
+static bool API_SWU_VerifyImage(const void *signature, const void *data, size_t imageSize, SIG_TYPE_T sigType) {
 	size_t hashSize;
 	unsigned int sigSize;
 	const EVP_MD *algo;
@@ -101,7 +101,7 @@ static int API_SWU_VerifyImage(const void *signature, const void *data, size_t i
 			break;
 		default:
 			printf("Invalid sigType: %d\n", sigType);
-			return 0;
+			return false;
 	}
 
 	unsigned char md_value[hashSize];
@@ -110,11 +110,11 @@ static int API_SWU_VerifyImage(const void *signature, const void *data, size_t i
 
 	EVP_MD_CTX *ctx1, *ctx2;
 	if ((ctx1 = EVP_MD_CTX_new()) == NULL)
-		return 0;
+		return false;
 
 	if ((ctx2 = EVP_MD_CTX_new()) == NULL) {
 		EVP_MD_CTX_free(ctx1);
-		return 0;
+		return false;
 	}
 
 	EVP_DigestInit(ctx1, algo);
@@ -128,7 +128,7 @@ static int API_SWU_VerifyImage(const void *signature, const void *data, size_t i
 	EVP_MD_CTX_free(ctx2);
 	EVP_MD_CTX_free(ctx1);
 
-	return result;
+	return (result == 1);
 }
 
 /*
@@ -139,7 +139,7 @@ static bool wrap_SWU_VerifyImage(
 	size_t signedSize, size_t *effectiveSignedSize, SIG_TYPE_T sigType
 ){
 	size_t curSize = signedSize;
-	int verified;
+	bool verified;
 	//int skipped = 0;
 	while (curSize > 0) {
 		verified = API_SWU_VerifyImage(signature, data, curSize, sigType);
