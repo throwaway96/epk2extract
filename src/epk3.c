@@ -67,6 +67,14 @@ MFILE *isFileEPK3(const char *epk_file) {
 		return file;
 }
 
+static inline CONST_FUNCTION size_t sizeMin(size_t a, size_t b) {
+	return (a < b) ? a : b;
+}
+
+static inline CONST_FUNCTION size_t sizeMax(size_t a, size_t b) {
+	return (a > b) ? a : b;
+}
+
 void extractEPK3(MFILE *epk, FILE_TYPE_T epkType, config_opts_t *config_opts){
 
 	epk3_union *epk3 = mdata(epk, epk3_union);
@@ -251,19 +259,27 @@ void extractEPK3(MFILE *epk, FILE_TYPE_T epkType, config_opts_t *config_opts){
 			pak->packageSize
 		);
 
+		bool savePak = false;
 		char *pakFileName = NULL;
 		MFILE *pakFile = NULL;
 
-		if (asprintf(&pakFileName, "%s/%s.pak", config_opts->dest_dir, pakName) == -1) {
-			err_exit("Error creating output filename for partition '%s'\n", pakName);
-		}
+		/* If a single target partition was selected, check whether this is it. */
+		if (((config_opts->targetPartition) == NULL) || (strcmp(config_opts->targetPartition, pakName) == 0)) {
+			savePak = true;
 
-		if ((pakFile = mfopen(pakFileName, "w+")) == NULL) {
-			err_exit("Cannot open file '%s' for writing\n", pakFileName);
-		}
+			if (asprintf(&pakFileName, "%s/%s.pak", config_opts->dest_dir, pakName) == -1) {
+				err_exit("Error creating output filename for partition '%s'\n", pakName);
+			}
 
-		mfile_map(pakFile, pak->packageSize);
-		printf("Saving partition '%s' to file '%s'\n", pakName, pakFileName);
+			if ((pakFile = mfopen(pakFileName, "w+")) == NULL) {
+				err_exit("Cannot open file '%s' for writing\n", pakFileName);
+			}
+
+			mfile_map(pakFile, pak->packageSize);
+			printf("Saving partition '%s' to file '%s'\n", pakName, pakFileName);
+		} else {
+			printf("Not saving partition '%s'\n", pakName);
+		}
 
 		unsigned int curSegmentIndex = packageInfoIndex;
 		PACKAGE_SEGMENT_INFO_T segmentInfo = pak->segmentInfo;
@@ -293,40 +309,52 @@ void extractEPK3(MFILE *epk, FILE_TYPE_T epkType, config_opts_t *config_opts){
 				pak->segmentInfo.segmentSize
 			);
 
-			if (!wrap_decryptimage(
-					(void *)dataPtr,
-					pak->segmentInfo.segmentSize,
-					(void *)dataPtr,
-					config_opts->dest_dir,
-					RAW,
-					NULL
-			)) {
-				return;
-			}
+			/* Even if not saving the output, decrypt (only) the new EPK3 format's segment index and verify it. */
+			if (savePak || (epkType == EPK_V3_NEW)) {
+				/* wrap_decryptimage() doesn't work correctly on short blocks. */
+				const size_t decryptLen = savePak ?
+					pak->segmentInfo.segmentSize :
+					sizeMin(sizeMax(extraSegmentSize, AES_BLOCK_SIZE), pak->segmentInfo.segmentSize);
 
-			if(epkType == EPK_V3_NEW){
-				uint_least32_t decryptedSegmentIndex = *(uint32_t *)dataPtr;
-				if(decryptedSegmentIndex != curSegmentIndex){
-					printf("Warning: Decrypted segment doesn't match expected index! (index: %" PRIuLEAST32 ", expected: %u)\n",
-							decryptedSegmentIndex, curSegmentIndex
-					);
+				if (!wrap_decryptimage(
+						(void *)dataPtr,
+						decryptLen,
+						(void *)dataPtr,
+						config_opts->dest_dir,
+						RAW,
+						NULL
+				)) {
+					return;
+				}
+
+				if(epkType == EPK_V3_NEW){
+					uint_least32_t decryptedSegmentIndex = *(uint32_t *)dataPtr;
+					if(decryptedSegmentIndex != curSegmentIndex){
+						printf("Warning: Decrypted segment doesn't match expected index! (index: %" PRIuLEAST32 ", expected: %u)\n",
+								decryptedSegmentIndex, curSegmentIndex
+						);
+					}
 				}
 			}
 
 			/* advance past segment index in new EPK3 format */
 			dataPtr += extraSegmentSize;
 
-			mwrite(dataPtr, pak->segmentInfo.segmentSize, 1, pakFile);
+			if (savePak) {
+				mwrite(dataPtr, pak->segmentInfo.segmentSize, 1, pakFile);
+			}
 
 			dataPtr += pak->segmentInfo.segmentSize;
 		}
 
-		mclose(pakFile);
-		pakFile = NULL;
+		if (savePak) {
+			mclose(pakFile);
+			pakFile = NULL;
 
-		handle_file(pakFileName, config_opts);
-		free(pakFileName);
-		pakFileName = NULL;
+			handle_file(pakFileName, config_opts);
+			free(pakFileName);
+			pakFileName = NULL;
+		}
 
 		packageInfoIndex = curSegmentIndex;
 	}
