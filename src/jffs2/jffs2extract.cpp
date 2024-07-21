@@ -572,7 +572,7 @@ union jffs2_node_union *find_next_node(MFILE *mf, off_t cur_off, int erase_size)
 		size_t empty_fsdata_sz = contiguos_region_size(mf, cur_off, 0x0);
 		if(empty_fsdata_sz != 0){
 			if(verbose)
-				printf("region(0x00) = 0x%x\n", empty_fsdata_sz);
+				printf("region(0x00) = 0x%zx\n", empty_fsdata_sz);
 		}
 
 		cur_off += empty_fsdata_sz;
@@ -588,7 +588,7 @@ union jffs2_node_union *find_next_node(MFILE *mf, off_t cur_off, int erase_size)
 		size_t empty_esblks_sz = contiguos_region_size(mf, cur_off, 0xFF);
 		if(empty_esblks_sz != 0){
 			if(verbose)
-				printf("region(0xFF) = 0x%x\n", empty_esblks_sz);
+				printf("region(0xFF) = 0x%zx\n", empty_esblks_sz);
 		}
 
 		cur_off += empty_esblks_sz;
@@ -650,7 +650,7 @@ extern "C" int jffs2extract(const char *infile, const char *outdir, const struct
 	while(off + sizeof(*node) < msize(mf)){
 		node = (union jffs2_node_union *)&data[off];
 		if(!is_jffs2_magic(node->u.magic) || node->u.totlen == 0){
-			printf("invalid node - scanning next node... (offset: %p)\n", off);
+			printf("invalid node - scanning next node... (offset: %#08lx)\n", off);
 
 			int use_es = -1;
 			if(es_reliable){
@@ -663,7 +663,7 @@ extern "C" int jffs2extract(const char *infile, const char *outdir, const struct
 			}
 			off_t prev_off = off;
 			off = moff(mf, node);
-			printf("found at %p, after 0x%x bytes\n", off, off - prev_off);
+			printf("found at %#08lx, after %#08lx bytes\n", off, off - prev_off);
 		}
 		if(moff(mf, node) + sizeof(*node) >= msize(mf)){
 			continue;
@@ -671,7 +671,7 @@ extern "C" int jffs2extract(const char *infile, const char *outdir, const struct
 
 		off += PAD_U32(node->u.totlen);
 		if (verbose)
-			printf("at %08x: %04x | %04x (%lu bytes): ", off, fix16(node->u.magic), fix16(node->u.nodetype), fix32(node->u.totlen));
+			printf("at %08lx: %04x | %04x (%lu bytes): ", off, fix16(node->u.magic), fix16(node->u.nodetype), fix32(node->u.totlen));
 
 		if (crc32_no_comp(0, (unsigned char *)node, sizeof(node->u) - 4) != fix32(node->u.hdr_crc)) {
 			++errors;
@@ -766,7 +766,7 @@ extern "C" int jffs2extract(const char *infile, const char *outdir, const struct
 				break;
 			default:
 				errors++;
-				printf(" ** INVALID ** - nodetype %04x (offset: %p)\n", fix16(node->u.nodetype), off);
+				printf(" ** INVALID ** - nodetype %04x (offset: %#08lx)\n", fix16(node->u.nodetype), off);
 		}
 	}
 
