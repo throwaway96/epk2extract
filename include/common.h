@@ -32,6 +32,12 @@
 #define FORMAT_PRINTF(x, y)
 #endif
 
+#ifdef __GNUC__
+#define CONST_FUNCTION __attribute__((__const__))
+#else
+#define CONST_FUNCTION
+#endif
+
 #define countof(x) (sizeof(x) / sizeof((x)[0]))
 
 #ifdef __GNUC__
