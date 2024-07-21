@@ -232,7 +232,7 @@ struct jffs2_main_args {
 	bool keep_unlinked;
 };
 
-int jffs2extract(const char *infile, const char *outdir, struct jffs2_main_args);
+int jffs2extract(const char *infile, const char *outdir, const struct jffs2_main_args *args);
 #ifdef __cplusplus
 }
 #endif

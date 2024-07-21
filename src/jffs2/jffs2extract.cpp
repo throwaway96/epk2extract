@@ -619,11 +619,11 @@ union jffs2_node_union *find_next_node(MFILE *mf, off_t cur_off, int erase_size)
 	return NULL;
 }
 
-extern "C" int jffs2extract(const char *infile, const char *outdir, struct jffs2_main_args args) {
+extern "C" int jffs2extract(const char *infile, const char *outdir, const struct jffs2_main_args *args) {
 	int errors = 0;
 
-	verbose = args.verbose;
-	keep_unlinked = args.keep_unlinked;
+	verbose = args->verbose;
+	keep_unlinked = args->keep_unlinked;
 
 	MFILE *mf = mopen(infile, O_RDONLY);
 	if (!mf) {
@@ -637,8 +637,8 @@ extern "C" int jffs2extract(const char *infile, const char *outdir, struct jffs2
 
 	bool es_reliable = false;
 	uint32_t es;
-	if(args.erase_size > -1){
-		es = args.erase_size;
+	if(args->erase_size > -1){
+		es = args->erase_size;
 	} else if(guess_es){
 		es = try_guess_es(mf, &es_reliable);
 		printf("> Guessed Erase Size: 0x%x (reliable=%d)\n", es, es_reliable);
