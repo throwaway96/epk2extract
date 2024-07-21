@@ -14,7 +14,7 @@
 #include <libgen.h>
 #include <getopt.h>
 #ifdef __CYGWIN__
-#    include <sys/cygwin.h>
+# include <sys/cygwin.h>
 #endif
 
 #include "config.h"
@@ -41,22 +41,21 @@
 #include "util.h"
 
 #ifdef __APPLE__
-#include <mach-o/dyld.h>
+# include <mach-o/dyld.h>
 #endif
 
 static int print_usage(void);
 
 config_opts_t config_opts;
 
-int handle_file(char *file, config_opts_t *config_opts) {
-	char *dest_dir = config_opts->dest_dir;
+bool handle_file(const char *file, config_opts_t *config_opts) {
+	const char *dest_dir = config_opts->dest_dir;
 	char *file_name = my_basename(file);
 
 	char *file_base = remove_ext(file_name);
-	//const char *file_ext = get_ext(strdup(file_name));
 	char *dest_file = NULL;
 
-	int result = EXIT_SUCCESS;
+	bool success = true;
 
 	MFILE *mf = NULL;
 	if (isFileEPK1(file)) {
@@ -70,7 +69,7 @@ int handle_file(char *file, config_opts_t *config_opts) {
 	} else if (config_opts->signatureOnly) {
 		/* none of the following file types have signatures */
 		printf("Only EPKs supported in signature-only mode\n");
-		result = EXIT_FAILURE;
+		success = false;
 	} else if((mf=is_mtk_pkg(file))){
 		extract_mtk_pkg(file, config_opts);
 	} else if((mf=is_firm_image(file))){
@@ -210,19 +209,21 @@ int handle_file(char *file, config_opts_t *config_opts) {
 		printf("Splitting mtk tzfw...\n");
 		split_mtk_tz(mf, dest_dir);
 	} else {
-		result = EXIT_FAILURE;
+		success = false;
 	}
 
-	if(mf != NULL)
+	if(mf != NULL) {
 		mclose(mf);
+	}
 
 	free(file_name);
 	free(file_base);
 
-	if(dest_file != NULL)
+	if(dest_file != NULL) {
 		free(dest_file);
+	}
 
-	return result;
+	return success;
 }
 
 int main(int argc, char *argv[]) {
@@ -234,7 +235,7 @@ int main(int argc, char *argv[]) {
 	char *exe_dir = calloc(1, PATH_MAX);
 	char *current_dir = calloc(1, PATH_MAX);
 
-	#ifdef __APPLE__
+#ifdef __APPLE__
 	uint32_t pathsz = PATH_MAX;
 	if (_NSGetExecutablePath(exe_dir, &pathsz) == 0){
 		printf("Executable path is %s\n", exe_dir);
@@ -243,11 +244,11 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 	config_opts.config_dir = my_dirname(exe_dir);
-	#else
+#else
 	getcwd(current_dir, PATH_MAX);
 	printf("Current directory: %s\n", current_dir);
 	readlink("/proc/self/exe", exe_dir, PATH_MAX);
-	#endif
+#endif
 
 	config_opts.config_dir = my_dirname(exe_dir);
 	config_opts.dest_dir = calloc(1, PATH_MAX);
@@ -258,32 +259,26 @@ int main(int argc, char *argv[]) {
 	int opt;
 	while ((opt = getopt(argc, argv, "csnS")) != -1) {
 		switch (opt) {
-		case 's':{
+		case 's':
 			config_opts.enableSignatureChecking = 1;
 			break;
-		}
-		case 'c':{
-				strcpy(config_opts.dest_dir, current_dir);
-				break;
-			}
-		case 'n':{
-				config_opts.noAutoExtractFs = true;
-				break;
-			 }
-		case 'S':{
-				config_opts.signatureOnly = true;
-				config_opts.enableSignatureChecking = 1;
-				break;
-			 }
-		case ':':{
-				printf("Option `%c' needs a value\n\n", optopt);
-				exit(1);
-				break;
-			}
-		case '?':{
-				printf("Unknown option: `%c'\n\n", optopt);
-				return 1;
-			}
+		case 'c':
+			strcpy(config_opts.dest_dir, current_dir);
+			break;
+		case 'n':
+			config_opts.noAutoExtractFs = true;
+			break;
+		case 'S':
+			config_opts.signatureOnly = true;
+			config_opts.enableSignatureChecking = 1;
+			break;
+		case ':':
+			printf("Option `%c' needs a value\n\n", optopt);
+			return EXIT_FAILURE;
+			break;
+		case '?':
+			printf("Unknown option: `%c'\n\n", optopt);
+			return EXIT_FAILURE;
 		}
 	}
 
@@ -300,11 +295,13 @@ int main(int argc, char *argv[]) {
 	char *input_file = argv[optind];
 #endif
 	printf("Input file: %s\n", input_file);
+
 	char *dname = NULL;
 	if (strlen(config_opts.dest_dir) == 0){
-			dname = my_dirname(input_file);
-			strcpy(config_opts.dest_dir, dname);
+		dname = my_dirname(input_file);
+		strcpy(config_opts.dest_dir, dname);
 	}
+
 	if (strlen(config_opts.dest_dir) == 0 && config_opts.dest_dir[0] == '.'){
 		dname = my_dirname(exe_dir);
 		strcpy(config_opts.dest_dir, dname);
@@ -316,9 +313,7 @@ int main(int argc, char *argv[]) {
 	free(exe_dir);
 	free(current_dir);
 
-	int exit_code = handle_file(input_file, &config_opts);
-
-	if (exit_code == EXIT_FAILURE) {
+	if (!handle_file(input_file, &config_opts)) {
 		return err_ret("Unsupported input file format: %s\n\n", input_file);
 	}
 
