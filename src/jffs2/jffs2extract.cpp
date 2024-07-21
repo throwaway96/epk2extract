@@ -619,7 +619,7 @@ union jffs2_node_union *find_next_node(MFILE *mf, off_t cur_off, int erase_size)
 	return NULL;
 }
 
-extern "C" int jffs2extract(char *infile, char *outdir, struct jffs2_main_args args) {
+extern "C" int jffs2extract(const char *infile, const char *outdir, struct jffs2_main_args args) {
 	int errors = 0;
 
 	verbose = args.verbose;

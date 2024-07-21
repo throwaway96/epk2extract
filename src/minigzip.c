@@ -336,19 +336,18 @@ const char *gzerror(gz, err)
 char *prog;
 
 void error            OF((const char *msg));
-void gz_compress      OF((FILE   *in, gzFile out));
+void gz_compress      OF((FILE *in, gzFile out));
 #ifdef USE_MMAP
-int  gz_compress_mmap OF((FILE   *in, gzFile out));
+int  gz_compress_mmap OF((FILE *in, gzFile out));
 #endif
-void gz_uncompress    OF((gzFile in, FILE   *out));
-void file_compress    OF((char  *file, char *mode));
-void file_uncompress  OF((char  *file));
+void gz_uncompress    OF((gzFile in, FILE *out));
+void file_compress    OF((const char *file, const char *mode));
+void file_uncompress  OF((const char *file));
 
 /* ===========================================================================
  * Display error message and exit
  */
-void error(msg)
-    const char *msg;
+void error(const char *msg)
 {
     fprintf(stderr, "%s: %s\n", prog, msg);
     exit(1);
@@ -358,9 +357,7 @@ void error(msg)
  * Compress input to output then close both files.
  */
 
-void gz_compress(in, out)
-    FILE   *in;
-    gzFile out;
+void gz_compress(FILE *in, gzFile out)
 {
     local char buf[BUFLEN];
     int len;
@@ -391,9 +388,7 @@ void gz_compress(in, out)
 /* Try compressing the input file at once using mmap. Return Z_OK if
  * if success, Z_ERRNO otherwise.
  */
-int gz_compress_mmap(in, out)
-    FILE   *in;
-    gzFile out;
+int gz_compress_mmap(FILE *in, gzFile out)
 {
     int len;
     int err;
@@ -426,9 +421,7 @@ int gz_compress_mmap(in, out)
 /* ===========================================================================
  * Uncompress input to output then close both files.
  */
-void gz_uncompress(in, out)
-    gzFile in;
-    FILE   *out;
+void gz_uncompress(gzFile in, FILE *out)
 {
     local char buf[BUFLEN];
     int len;
@@ -453,9 +446,7 @@ void gz_uncompress(in, out)
  * Compress the given file: create a corresponding .gz file and remove the
  * original.
  */
-void file_compress(file, mode)
-    char  *file;
-    char  *mode;
+void file_compress(const char *file, const char *mode)
 {
     local char outfile[MAX_NAME_LEN];
     FILE  *in;
@@ -492,11 +483,10 @@ void file_compress(file, mode)
 /* ===========================================================================
  * Uncompress the given file and remove the original.
  */
-void file_uncompress(file)
-    char  *file;
+void file_uncompress(const char *file)
 {
     local char buf[MAX_NAME_LEN];
-    char *infile, *outfile;
+    const char *infile, *outfile;
     FILE  *out;
     gzFile in;
     size_t len = strlen(file);
@@ -514,8 +504,8 @@ void file_uncompress(file)
 
     if (len > SUFFIX_LEN && strcmp(file+len-SUFFIX_LEN, GZ_SUFFIX) == 0) {
         infile = file;
+        buf[len-3] = '\0';
         outfile = buf;
-        outfile[len-3] = '\0';
     } else {
         outfile = file;
         infile = buf;
@@ -541,7 +531,7 @@ void file_uncompress(file)
     unlink(infile);
 }
 
-char *file_uncompress_origname(char *infile, char *path) {
+char *file_uncompress_origname(const char *infile, const char *path) {
 	FILE *in, *out;
 	gzFile gzin;
 

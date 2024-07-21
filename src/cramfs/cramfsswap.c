@@ -23,7 +23,7 @@
 #define MAXFILES	4096
 #define BLKSIZE		4096		/* Should this be a command line option? */
 
-int cramswap(char *sinfile, char *soutfile) {
+int cramswap(const char *sinfile, const char *soutfile) {
 	uint32_t superblock_in[16], superblock_out[16], flags, blockpointer_in, blockpointer_out, blockpointer_last, crc, *mapping;
 	uint16_t endiantest;
 	uint8_t inode_in[12], inode_out[12];

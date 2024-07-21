@@ -12,7 +12,7 @@ struct tsfile_options {
 	uint8_t append;
 };
 
-void convertSTR2TS(char *inFilename, struct tsfile_options *opts);
-void processPIF(const char *filename, char *dest_file);
+void convertSTR2TS(const char *inFilename, const struct tsfile_options *opts);
+void processPIF(const char *filename, const char *dest_file);
 uint32_t str_crc32(const unsigned char *data, int len);
 #endif //__TSFILE_H

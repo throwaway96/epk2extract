@@ -228,7 +228,7 @@ static inline uint32_t pack_pid(int pid){
 	) & 0xFFFFF;
 }
 
-void writePMT(struct tables *PIDs, FILE *outFile, struct tsfile_options *opts){
+void writePMT(struct tables *PIDs, FILE *outFile, const struct tsfile_options *opts){
 	int audio_stream_type = (opts->audio_stream_type == -1) ? AUDIO_TYPE_MPEG2 : opts->audio_stream_type;
 	int video_stream_type = (opts->video_stream_type == -1) ? VIDEO_TYPE_H264 : opts->video_stream_type;
 
@@ -409,7 +409,7 @@ void processTsPacket(uint8_t *packet, struct tables *PIDs, FILE *outFile){
 	fwrite(packet, 1, TS_PACKET_SIZE, outFile);
 }
 
-void convertSTR2TS_internal(char *inFilename, char *outFilename, struct tsfile_options *opts) {
+static void convertSTR2TS_internal(const char *inFilename, const char *outFilename, const struct tsfile_options *opts) {
 	MFILE *inFile = mopen(inFilename, O_RDONLY);
 	if (inFile == NULL) {
 		printf("Can't open file %s\n", inFilename);
@@ -462,7 +462,7 @@ void convertSTR2TS_internal(char *inFilename, char *outFilename, struct tsfile_o
 	mclose(inFile);
 }
 
-void convertSTR2TS(char *inFilename, struct tsfile_options *opts) {
+void convertSTR2TS(const char *inFilename, const struct tsfile_options *opts) {
 	char *baseDir = my_dirname(inFilename);
 	char *keyPath;
 
@@ -484,7 +484,7 @@ void convertSTR2TS(char *inFilename, struct tsfile_options *opts) {
 	free(baseDir);
 }
 
-void processPIF(const char *filename, char *dest_file) {
+void processPIF(const char *filename, const char *dest_file) {
 	FILE *file = fopen(filename, "r");
 	if (file == NULL) {
 		err_exit("Can't open file %s\n", filename);
