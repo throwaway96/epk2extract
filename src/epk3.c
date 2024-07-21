@@ -133,20 +133,20 @@ void extractEPK3(MFILE *epk, FILE_TYPE_T epkType, config_opts_t *config_opts){
 
 	PAK_V3_HEADER_T *pak;
 
-	void *sigPtr;
+	const void *pkgInfoSigPtr;
 
 	switch(epkType){
 		case EPK_V3:
 			pak_signed_size = epkHeader->old.packageInfoSize;
 			packageInfo = (PAK_V3_LISTHEADER_UNION *) &(epk3->old.packageInfo);
 			pak = &(packageInfo->old.packages[0]);
-			sigPtr = epk3->old.packageInfo_signature;
+			pkgInfoSigPtr = epk3->old.packageInfo_signature;
 			break;
 		case EPK_V3_NEW:
 			pak_signed_size = epkHeader->new.packageInfoSize;
 			packageInfo = (PAK_V3_LISTHEADER_UNION *) &(epk3->new.packageInfo);
 			pak = &(packageInfo->new.packages[0]);
-			sigPtr = epk3->new.packageInfo_signature;
+			pkgInfoSigPtr = epk3->new.packageInfo_signature;
 			break;
 		default:
 			err_exit("Unsupported EPK3 variant\n");
@@ -154,7 +154,7 @@ void extractEPK3(MFILE *epk, FILE_TYPE_T epkType, config_opts_t *config_opts){
 
 	if(config_opts->enableSignatureChecking){
 		wrap_verifyimage(
-			sigPtr,
+			pkgInfoSigPtr,
 			packageInfo,
 			pak_signed_size,
 			config_opts->config_dir,
@@ -209,7 +209,6 @@ void extractEPK3(MFILE *epk, FILE_TYPE_T epkType, config_opts_t *config_opts){
 
 	printf("---- begin ----\n");
 
-
 	/* Decrypt packageInfo */
 	if (!wrap_decryptimage(
 		packageInfo,
@@ -232,61 +231,53 @@ void extractEPK3(MFILE *epk, FILE_TYPE_T epkType, config_opts_t *config_opts){
 		}
 	}
 
-	uintptr_t dataPtr = (uintptr_t)packageInfo;
+	/* These fields have the same offests in the old and new formats. */
+	uintptr_t dataPtr = (uintptr_t)packageInfo + epkHeader->old.packageInfoSize;
+	const uint_least32_t packageInfoCount = packageInfo->old.packageInfoCount;
 
-	dataPtr += epkHeader->old.packageInfoSize;
-
-	unsigned int packageInfoCount;
-
-	switch(epkType){
-		case EPK_V3:
-			packageInfoCount = packageInfo->old.packageInfoCount;
-			break;
-		case EPK_V3_NEW:
-			packageInfoCount = packageInfo->new.packageInfoCount;
-			break;
-		default:
-			err_exit("Unsupported EPK3 variant\n");
-	}
-
-	for(uint i = 0; i<packageInfoCount;){
+	for (unsigned int packageInfoIndex = 0; packageInfoIndex < packageInfoCount; /* handled elsewhere */) {
 		if(pak->packageInfoSize != sizeof(*pak)){
 			printf("Warning: Unexpected packageInfoSize '%" PRIu32 "', expected '%zu'\n",
 					pak->packageInfoSize, sizeof(*pak)
 			);
 		}
 
+		const char *const pakName = pak->packageName;
+
 		printf("\nPAK '%s' contains %" PRIu32 " segment%s, size %" PRIu32 " bytes:\n",
-			pak->packageName,
+			pakName,
 			pak->segmentInfo.segmentCount,
 			(pak->segmentInfo.segmentCount == 1) ? "" : "s",
 			pak->packageSize
 		);
 
 		char *pakFileName = NULL;
-		asprintf(&pakFileName, "%s/%s.pak", config_opts->dest_dir, pak->packageName);
+		MFILE *pakFile = NULL;
 
-		MFILE *pakFile = mfopen(pakFileName, "w+");
-		if(!pakFile){
-			err_exit("Cannot open '%s' for writing\n", pakFileName);
+		if (asprintf(&pakFileName, "%s/%s.pak", config_opts->dest_dir, pakName) == -1) {
+			err_exit("Error creating output filename for partition '%s'\n", pakName);
+		}
+
+		if ((pakFile = mfopen(pakFileName, "w+")) == NULL) {
+			err_exit("Cannot open file '%s' for writing\n", pakFileName);
 		}
 
 		mfile_map(pakFile, pak->packageSize);
-		printf("Saving partition (%s) to file %s\n", pak->packageName, pakFileName);
+		printf("Saving partition '%s' to file '%s'\n", pakName, pakFileName);
 
-
+		unsigned int curSegmentIndex = packageInfoIndex;
 		PACKAGE_SEGMENT_INFO_T segmentInfo = pak->segmentInfo;
-		for(uint segNo = segmentInfo.segmentIndex;
+		for (uint_least32_t segNo = segmentInfo.segmentIndex;
 			segNo < segmentInfo.segmentCount;
-			segNo++, pak++, i++
-		){
-			const void *sigPtr = (void *) dataPtr;
+			segNo++, pak++, curSegmentIndex++
+		) {
+			const void *dataSigPtr = (void *) dataPtr;
 			dataPtr += sigSize;
 
 			if(config_opts->enableSignatureChecking)
 			{
 				wrap_verifyimage(
-					sigPtr,
+					dataSigPtr,
 					(const void *)dataPtr,
 					pak->segmentInfo.segmentSize + extraSegmentSize,
 					config_opts->config_dir,
@@ -294,9 +285,9 @@ void extractEPK3(MFILE *epk, FILE_TYPE_T epkType, config_opts_t *config_opts){
 				);
 			}
 
-			printf("  segment #%u (name='%s', version='%s', offset='0x%jx', size='%" PRIu32 " bytes')\n",
+			printf("  segment #%" PRIuLEAST32 " (name='%s', version='%s', offset='0x%jx', size='%" PRIu32 " bytes')\n",
 				segNo + 1,
-				pak->packageName,
+				pakName,
 				pak->packageVersion,
 				(intmax_t) moff(epk, dataPtr),
 				pak->segmentInfo.segmentSize
@@ -314,25 +305,29 @@ void extractEPK3(MFILE *epk, FILE_TYPE_T epkType, config_opts_t *config_opts){
 			}
 
 			if(epkType == EPK_V3_NEW){
-				uint32_t decryptedSegmentIndex = *(uint32_t *)dataPtr;
-				if(decryptedSegmentIndex != i){
-					printf("Warning: Decrypted segment doesn't match expected index! (index: %" PRIu32 ", expected: %u)\n",
-							decryptedSegmentIndex, i
+				uint_least32_t decryptedSegmentIndex = *(uint32_t *)dataPtr;
+				if(decryptedSegmentIndex != curSegmentIndex){
+					printf("Warning: Decrypted segment doesn't match expected index! (index: %" PRIuLEAST32 ", expected: %u)\n",
+							decryptedSegmentIndex, curSegmentIndex
 					);
 				}
-				mwrite(dataPtr + 4, pak->segmentInfo.segmentSize, 1, pakFile);
-			} else {
-				mwrite(dataPtr, pak->segmentInfo.segmentSize, 1, pakFile);
 			}
 
-			dataPtr += pak->segmentInfo.segmentSize;
-
-			/* for segment index in new EPK3 */
+			/* advance past segment index in new EPK3 format */
 			dataPtr += extraSegmentSize;
+
+			mwrite(dataPtr, pak->segmentInfo.segmentSize, 1, pakFile);
+
+			dataPtr += pak->segmentInfo.segmentSize;
 		}
 
 		mclose(pakFile);
+		pakFile = NULL;
+
 		handle_file(pakFileName, config_opts);
 		free(pakFileName);
+		pakFileName = NULL;
+
+		packageInfoIndex = curSegmentIndex;
 	}
 }
