@@ -13,6 +13,7 @@ typedef struct {
 	int enableSignatureChecking;
 	bool noAutoExtractFs;
 	bool signatureOnly;
+	const char *targetPartition;
 } config_opts_t;
 
 extern config_opts_t config_opts;
