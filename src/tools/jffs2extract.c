@@ -71,7 +71,7 @@ int main(int argc, char *argv[]){
 	};
 
 	printf("Extracting %s to %s\n", filename, outpath);
-	int ret = jffs2extract(filename, outpath, args);
+	int ret = jffs2extract(filename, outpath, &args);
 
 	free(outpath);
 	return ret;
