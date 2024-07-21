@@ -255,9 +255,10 @@ int main(int argc, char *argv[]) {
 	config_opts.enableSignatureChecking = 0;
 	config_opts.noAutoExtractFs = false;
 	config_opts.signatureOnly = false;
+	config_opts.targetPartition = NULL;
 
 	int opt;
-	while ((opt = getopt(argc, argv, "csnS")) != -1) {
+	while ((opt = getopt(argc, argv, "csnSp:")) != -1) {
 		switch (opt) {
 		case 's':
 			config_opts.enableSignatureChecking = 1;
@@ -271,6 +272,9 @@ int main(int argc, char *argv[]) {
 		case 'S':
 			config_opts.signatureOnly = true;
 			config_opts.enableSignatureChecking = 1;
+			break;
+		case 'p':
+			config_opts.targetPartition = optarg;
 			break;
 		case ':':
 			printf("Option `%c' needs a value\n\n", optopt);
@@ -327,6 +331,8 @@ static int print_usage(void) {
 	printf("  -c : extract to current directory instead of source file directory\n");
 	printf("  -s : enable signature checking for EPK files\n");
 	printf("  -S : only check signature (implies -s)\n");
-	printf("  -n : no automatic filesystem extraction\n\n");
+	printf("  -n : no automatic filesystem extraction\n");
+	printf("  -p <partition> : only extract the specified partition\n");
+	putchar('\n');
 	return err_ret(NULL);
 }
