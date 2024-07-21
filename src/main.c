@@ -169,13 +169,13 @@ int handle_file(char *file, config_opts_t *config_opts) {
 			printf("UnJFFS2 file %s to folder %s\n", file, dest_file);
 			rmrf(dest_file);
 
-			struct jffs2_main_args args = {
+			const struct jffs2_main_args args = {
 				.erase_size = -1,
 				.keep_unlinked = false,
 				.verbose = 0
 			};
 
-			jffs2extract(file, dest_file, args);
+			jffs2extract(file, dest_file, &args);
 		} else {
 			puts("Not UnJFFS2ing");
 		}
