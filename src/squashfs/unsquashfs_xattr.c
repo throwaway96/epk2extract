@@ -32,7 +32,7 @@
 extern int root_process;
 extern int user_xattrs;
 
-void write_xattr(char *pathname, unsigned int xattr) {
+void write_xattr(const char *pathname, unsigned int xattr) {
 	unsigned int count;
 	struct xattr_list *xattr_list;
 	int i;
