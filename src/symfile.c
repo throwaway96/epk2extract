@@ -75,7 +75,7 @@ int symfile_load(const char *fname) {
 
 	if (fstat(fd, &st_buf) != 0) {
 		fprintf(stderr, "fstat for `%s' is failed: %m\n", fname);
-
+		close(fd);
 		return -1;
 	}
 
@@ -89,24 +89,29 @@ int symfile_load(const char *fname) {
 	p += sizeof(*header);
 	if (header == NULL) {
 		fprintf(stderr, "can't mmap `%s': %m\n", fname);
-
+		close(fd);
 		return -1;
 	}
 
 	if (header->magic != MAGIC) {
 		//fprintf(stderr, "bad magic 0x%x from `%s'\n", header->magic, fname);
+		munmap(header, st_buf.st_size);
+		close(fd);
 		return -1;
 	}
 
 	if ((header->size + sizeof(*header)) != (uint32_t) st_buf.st_size) {
 		fprintf(stderr, "bad file `%s' size: %zu, expected size: %lu\n", fname,
 				st_buf.st_size, header->size + sizeof(*header));
-
+		munmap(header, st_buf.st_size);
+		close(fd);
 		return -1;
 	}
 
 	if ((header->tail_size + sizeof(struct sym_entry) * header->n_symbols)	!= header->size) {
 		fprintf(stderr, "file `%s' is broken\n", fname);
+		munmap(header, st_buf.st_size);
+		close(fd);
 		return -1;
 	}
 
@@ -118,6 +123,8 @@ int symfile_load(const char *fname) {
 	p += sizeof(*has_hash);
 	if (*has_hash != 2 && *has_hash != 0) {
 		fprintf(stderr, "unsupported file `%s' format (unexpected has_hash 0x%x)\n", fname, *has_hash);
+		munmap(header, st_buf.st_size);
+		close(fd);
 		return -1;
 	}
 
