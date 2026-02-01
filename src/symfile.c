@@ -29,14 +29,15 @@
 
 #include <symfile.h>
 
+#include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #define MAGIC 0xB12791EE
 
@@ -59,87 +60,85 @@ struct sym_table sym_table = {
 };
 
 int symfile_load(const char *fname) {
-	int fd = -1;
-	struct stat st_buf;
-	void *p;
-	struct symfile_header *header;
-	uint32_t *has_hash, *has_dwarf;
-	uint32_t dwarf_data_size = 0;
-
-	fd = open(fname, O_RDONLY);
+	int fd = open(fname, O_RDONLY);
 	if (fd == -1) {
-		fprintf(stderr, "can't open `%s': %m\n", fname);
+		fprintf(stderr, "can't open `%s': %s\n", fname, strerror(errno));
 
-		return -1;
+		goto failed;
 	}
 
+	struct stat st_buf;
 	if (fstat(fd, &st_buf) != 0) {
-		fprintf(stderr, "fstat for `%s' is failed: %m\n", fname);
-		close(fd);
-		return -1;
+		fprintf(stderr, "fstat for `%s' is failed: %s\n", fname, strerror(errno));
+
+		goto failed_close;
 	}
 
-	if (st_buf.st_size < sizeof(*header)) {
-		close(fd);
-		return -1;
+	if (st_buf.st_size < sizeof(struct symfile_header)) {
+		// silently ignore too-small files
+
+		goto failed_close;
 	}
 
-	p = mmap(NULL, st_buf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-	header = p;
+	void *const map = mmap(NULL, st_buf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (map == NULL) {
+		fprintf(stderr, "can't mmap `%s': %s\n", fname, strerror(errno));
+
+		goto failed_close;
+	}
+
+	void *p = map;
+	const struct symfile_header *const header = p;
 	p += sizeof(*header);
-	if (header == NULL) {
-		fprintf(stderr, "can't mmap `%s': %m\n", fname);
-		close(fd);
-		return -1;
-	}
-
 	if (header->magic != MAGIC) {
-		//fprintf(stderr, "bad magic 0x%x from `%s'\n", header->magic, fname);
-		munmap(header, st_buf.st_size);
-		close(fd);
-		return -1;
+		// silently ignore files with bad magic
+
+		goto failed_unmap;
 	}
 
-	if ((header->size + sizeof(*header)) != (uint32_t) st_buf.st_size) {
-		fprintf(stderr, "bad file `%s' size: %zu, expected size: %lu\n", fname,
-				st_buf.st_size, header->size + sizeof(*header));
-		munmap(header, st_buf.st_size);
-		close(fd);
-		return -1;
+	const uint_least32_t expected_size = header->size + sizeof(*header);
+	if (expected_size != (uint_least32_t) st_buf.st_size) {
+		fprintf(stderr, "bad file `%s' (size): %ju, expected size: %" PRIuLEAST32 "\n",
+			fname, (uintmax_t) st_buf.st_size, expected_size);
+
+		goto failed_unmap;
 	}
 
-	if ((header->tail_size + sizeof(struct sym_entry) * header->n_symbols)	!= header->size) {
-		fprintf(stderr, "file `%s' is broken\n", fname);
-		munmap(header, st_buf.st_size);
-		close(fd);
-		return -1;
+	const uint32_t calc_size = header->tail_size + sizeof(struct sym_entry) * header->n_symbols;
+	if (calc_size != header->size) {
+		fprintf(stderr, "bad file `%s': inconsistent sizes in header (%" PRIu32 " != %" PRIu32 ")\n",
+			fname, calc_size, header->size);
+
+		goto failed_unmap;
 	}
 
 	sym_table.n_symbols = header->n_symbols;
 	sym_table.sym_entry = p;
 	p += sizeof(sym_table.sym_entry[0]) * sym_table.n_symbols;
 
-	has_hash = p;
+	const uint32_t *const has_hash = p;
 	p += sizeof(*has_hash);
-	if (*has_hash != 2 && *has_hash != 0) {
-		fprintf(stderr, "unsupported file `%s' format (unexpected has_hash 0x%x)\n", fname, *has_hash);
-		munmap(header, st_buf.st_size);
-		close(fd);
-		return -1;
+	if ((*has_hash != 2) && (*has_hash != 0)) {
+		fprintf(stderr, "unsupported file `%s' format: unexpected has_hash 0x%x\n",
+			fname, *has_hash);
+
+		goto failed_unmap;
 	}
 
 	if (*has_hash == 2) {
 		sym_table.hash = p;
-		p += sizeof(sym_table.hash[0]) * ((sym_table.n_symbols + 1) & (~0 - 1));
+		// round up to even number of symbols
+		const uint32_t rounded_count = (sym_table.n_symbols + 1) & (~((uint32_t) 1));
+		p += sizeof(sym_table.hash[0]) * rounded_count;
 	}
 
-	has_dwarf = p;
+	const uint32_t *const has_dwarf = p;
 	p += sizeof(*has_dwarf);
 
 	if (*has_dwarf == 1) {
 		sym_table.n_dwarf_lst = *(uint32_t *) p;
 		p += sizeof(sym_table.n_dwarf_lst);
-		dwarf_data_size = *(uint32_t *) p;
+		const uint32_t dwarf_data_size = *(uint32_t *) p;
 		p += sizeof(dwarf_data_size);
 		sym_table.dwarf_lst = p;
 		p += sizeof(sym_table.dwarf_lst[0]) * sym_table.n_dwarf_lst;
@@ -147,21 +146,34 @@ int symfile_load(const char *fname) {
 		p += dwarf_data_size;
 		sym_table.sym_name = p;
 	} else {
-		sym_table.sym_name = (char *)has_dwarf;
+		sym_table.sym_name = (const char *) has_dwarf;
 	}
 
 	printf("`%s' has been successfully loaded\n", fname);
 
 	return 0;
+
+failed_unmap:
+	if (munmap(map, st_buf.st_size) != 0) {
+		fprintf(stderr, "can't unmap `%s' (error %d): %s\n", fname, errno, strerror(errno));
+	}
+
+failed_close:
+	if (close(fd) != 0) {
+		fprintf(stderr, "can't close `%s' (error %d): %s\n", fname, errno, strerror(errno));
+	}
+
+failed:
+	return -1;
 }
 
 uint32_t symfile_addr_by_name(const char *name) {
-	unsigned i = 0;
-	for (i = 0; i < sym_table.n_symbols; ++i) {
-		char *sym_name = sym_table.sym_name	+ sym_table.sym_entry[i].sym_name_off;
+	for (unsigned int i = 0; i < sym_table.n_symbols; ++i) {
+		const char *sym_name = sym_table.sym_name + sym_table.sym_entry[i].sym_name_off;
 
-		if (strcmp(sym_name, name) == 0)
+		if (strcmp(sym_name, name) == 0) {
 			return sym_table.sym_entry[i].addr;
+		}
 	}
 
 	return 0;
@@ -172,49 +184,42 @@ uint32_t symfile_n_symbols() {
 }
 
 void symfile_write_idc(const char *fname) {
-
 	FILE *outfile = fopen(fname, "w");
+	if (outfile == NULL) {
+		fprintf(stderr, "can't open `%s' for writing: %s\n", fname, strerror(errno));
+		return;
+	}
 
-	fprintf(outfile, "%s\n\n", "#include <idc.idc>");
-	fprintf(outfile, "%s\n", "static main() {");
+	fprintf(outfile, "#include <idc.idc>\n\n");
+	fprintf(outfile, "static main() {\n");
 
-	unsigned i = 0;
-	for (i = 0; i < sym_table.n_symbols; ++i) {
-			char *sym_name = sym_table.sym_name
+	for (unsigned int i = 0; i < sym_table.n_symbols; ++i) {
+			const char *sym_name = sym_table.sym_name
 					+ sym_table.sym_entry[i].sym_name_off;
 
 			uint32_t addr = sym_table.sym_entry[i].addr;
 			uint32_t end = sym_table.sym_entry[i].end;
 
-			//printf("%s: %x...%x\n", sym_name, addr, end);
+			fprintf(outfile, "\tMakeNameEx(0x%x, \"%s\", SN_NOWARN | SN_CHECK);\n", addr, sym_name);
 
-			fprintf(outfile, "MakeNameEx( 0x%x, \"%s\", SN_NOWARN | SN_CHECK);\n", addr, sym_name);
-
-			fprintf(outfile, "if(SegName(0x%x)==\".text\") {\n", addr);
-			fprintf(outfile, "   MakeCode(0x%x);\n", addr);
-			fprintf(outfile, "   MakeFunction(0x%x, 0x%x);\n", addr, end);
-			fprintf(outfile, "};\n");
-
+			fprintf(outfile, "\tif (SegName(0x%x)==\".text\") {\n", addr);
+			fprintf(outfile, "\t\tMakeCode(0x%x);\n", addr);
+			fprintf(outfile, "\t\tMakeFunction(0x%x, 0x%x);\n", addr, end);
+			fprintf(outfile, "\t};\n");
 	}
 
-	fprintf(outfile, "%s\n", "}");
+	fprintf(outfile, "}\n");
 
-	fclose(outfile);
-
-	//printf("n_dwarf_lst: %d\n", sym_table.n_dwarf_lst);
-	//printf("dwarf_lst.d1: %d\n", sym_table.dwarf_lst->d1);
-	//printf("dwarf_lst.d2: %d\n", sym_table.dwarf_lst->d2);
-
-	//hexdump(sym_table.dwarf_data, 15000);
-
+	if (fclose(outfile) != 0) {
+		fprintf(stderr, "can't close `%s' (error %d): %s\n", fname, errno, strerror(errno));
+	}
 }
 
-
 const char *symfile_name_by_addr(uint32_t addr) {
-	int i = 0;
-	for (i = sym_table.n_symbols - 1; i >= 0; --i) {
-		if (sym_table.sym_entry[i].addr <= addr && sym_table.sym_entry[i].end > addr)
+	for (int i = sym_table.n_symbols - 1; i >= 0; --i) {
+		if (sym_table.sym_entry[i].addr <= addr && sym_table.sym_entry[i].end > addr) {
 			return sym_table.sym_name + sym_table.sym_entry[i].sym_name_off;
+		}
 	}
 
 	return NULL;

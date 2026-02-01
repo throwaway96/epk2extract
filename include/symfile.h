@@ -40,15 +40,15 @@ struct sym_entry {
 
 struct sym_table {
 	uint32_t n_symbols;
-	struct sym_entry *sym_entry;
-	uint32_t *hash;
+	const struct sym_entry *sym_entry;
+	const uint32_t *hash;
 	uint32_t n_dwarf_lst;
-	struct {
+	const struct {
 		uint32_t d1;
 		uint32_t d2;
 	} *dwarf_lst;
-	unsigned char *dwarf_data;
-	char *sym_name;
+	const unsigned char *dwarf_data;
+	const char *sym_name;
 };
 
 extern struct sym_table sym_table;
